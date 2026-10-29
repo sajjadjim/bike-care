@@ -14,6 +14,11 @@ export const metadata: Metadata = {
     'tax token expiry Bangladesh',
     'odometer tracker',
   ],
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({
