@@ -38,38 +38,49 @@ export async function GET(req: NextRequest) {
 
     if (isConnected) {
       await connectToDatabase();
-      vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
+      const mongoose = (await import('mongoose')).default;
+      if (mongoose.Types.ObjectId.isValid(vehicleId)) {
+        vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
+      }
       if (!vehicle) {
-        return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
+        vehicle = await Vehicle.findOne({ ownerId: authUser.uid });
+      }
+      if (!vehicle) {
+        return NextResponse.json({ error: 'Vehicle not found', oilState: null, history: [] }, { status: 404 });
       }
 
+      const actualId = vehicle._id.toString();
       oilState = await MaintenanceState.findOne({
-        vehicleId,
+        vehicleId: actualId,
         ownerId: authUser.uid,
         maintenanceTaskId: 'OIL_CHANGE',
       });
 
       oilHistory = await MaintenanceHistory.find({
-        vehicleId,
+        vehicleId: actualId,
         ownerId: authUser.uid,
         maintenanceTaskId: 'OIL_CHANGE',
       }).sort({ serviceDate: -1 });
 
-      readings = await OdometerReading.find({ vehicleId, ownerId: authUser.uid });
+      readings = await OdometerReading.find({ vehicleId: actualId, ownerId: authUser.uid });
     } else {
       vehicle = memDb.vehicles.get(vehicleId);
+      if (!vehicle) {
+        vehicle = Array.from(memDb.vehicles.values()).find((v) => v.ownerId === authUser.uid);
+      }
       if (!vehicle || vehicle.ownerId !== authUser.uid) {
-        return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Vehicle not found', oilState: null, history: [] }, { status: 404 });
       }
 
-      const stateKey = `${vehicleId}:${vehicle.type === 'motorcycle' ? 'mc-eng-oil' : 'car-eng-oil'}:OIL_CHANGE`;
+      const actualId = vehicle._id;
+      const stateKey = `${actualId}:${vehicle.type === 'motorcycle' ? 'mc-eng-oil' : 'car-eng-oil'}:OIL_CHANGE`;
       oilState = memDb.maintenanceStates.get(stateKey);
 
       oilHistory = memDb.maintenanceHistory
-        .filter((h) => h.vehicleId === vehicleId && h.ownerId === authUser.uid && h.maintenanceTaskId === 'OIL_CHANGE')
+        .filter((h) => h.vehicleId === actualId && h.ownerId === authUser.uid && h.maintenanceTaskId === 'OIL_CHANGE')
         .sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime());
 
-      readings = memDb.odometerReadings.filter((r) => r.vehicleId === vehicleId && r.ownerId === authUser.uid);
+      readings = memDb.odometerReadings.filter((r) => r.vehicleId === actualId && r.ownerId === authUser.uid);
     }
 
     const currentOdometer = vehicle.currentOdometer || 0;

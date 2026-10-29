@@ -22,7 +22,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshVehicles = useCallback(async () => {
-    if (!user) {
+    if (!user || (!token && !user.isDemo)) {
       setVehicles([]);
       setActiveVehicle(null);
       setLoading(false);

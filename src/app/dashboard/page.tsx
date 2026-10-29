@@ -49,7 +49,7 @@ export default function DashboardOverviewPage() {
   const [averageDailyKM, setAverageDailyKM] = useState(0);
 
   const fetchDashboardData = useCallback(async () => {
-    if (!activeVehicle) {
+    if (!activeVehicle || !user || (!token && !user.isDemo)) {
       setLoading(false);
       return;
     }

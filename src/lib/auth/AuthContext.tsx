@@ -41,9 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Sync profile to MongoDB
-  const syncUserWithDatabase = async (authUser: AuthUser) => {
+  const syncUserWithDatabase = async (authUser: AuthUser, explicitToken?: string) => {
     try {
-      const currentToken = token || (authUser.isDemo ? `demo-${authUser.uid}` : '');
+      const currentToken = explicitToken || token || (authUser.isDemo ? `demo-${authUser.uid}` : '');
+      if (!currentToken) return;
+
       await fetch('/api/users/sync', {
         method: 'POST',
         headers: {
@@ -91,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           setUser(mappedUser);
           setToken(idToken);
-          syncUserWithDatabase(mappedUser);
+          await syncUserWithDatabase(mappedUser, idToken);
         } else {
           setUser(null);
           setToken(null);
@@ -118,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       setUser(mapped);
       setToken(idToken);
-      await syncUserWithDatabase(mapped);
+      await syncUserWithDatabase(mapped, idToken);
     } catch (error: any) {
       console.error('Google Sign-in failed:', error);
       throw error;
@@ -136,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setUser(mapped);
     setToken(idToken);
-    await syncUserWithDatabase(mapped);
+    await syncUserWithDatabase(mapped, idToken);
   };
 
   const registerWithEmail = async (email: string, pass: string, name: string) => {
@@ -153,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setUser(mapped);
     setToken(idToken);
-    await syncUserWithDatabase(mapped);
+    await syncUserWithDatabase(mapped, idToken);
   };
 
   const logout = async () => {

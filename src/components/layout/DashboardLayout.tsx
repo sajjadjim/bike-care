@@ -30,7 +30,7 @@ import {
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { vehicles, activeVehicle, selectVehicle } = useVehicle();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -40,10 +40,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Fetch unread notifications count
-    if (user) {
+    if (user && (token || user.isDemo)) {
+      const authHeader = `Bearer ${token || (user.isDemo ? `demo-${user.uid}` : '')}`;
       fetch('/api/notifications', {
         headers: {
-          Authorization: `Bearer ${user.isDemo ? `demo-${user.uid}` : ''}`,
+          Authorization: authHeader,
           'x-demo-user-id': user.uid,
         },
       })
@@ -55,7 +56,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         })
         .catch(() => {});
     }
-  }, [user, pathname]);
+  }, [user, token, pathname]);
 
   const vehicleId = activeVehicle?._id || 'all';
 

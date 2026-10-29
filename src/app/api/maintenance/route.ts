@@ -35,28 +35,39 @@ export async function GET(req: NextRequest) {
 
     if (isConnected) {
       await connectToDatabase();
-      vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
-      if (!vehicle) {
-        return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
+      const mongoose = (await import('mongoose')).default;
+      if (mongoose.Types.ObjectId.isValid(vehicleId)) {
+        vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
       }
-      states = await MaintenanceState.find({ vehicleId, ownerId: authUser.uid });
-      history = await MaintenanceHistory.find({ vehicleId, ownerId: authUser.uid }).sort({
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ ownerId: authUser.uid });
+      }
+      if (!vehicle) {
+        return NextResponse.json({ error: 'Vehicle not found', states: [], history: [] }, { status: 404 });
+      }
+      const actualId = vehicle._id.toString();
+      states = await MaintenanceState.find({ vehicleId: actualId, ownerId: authUser.uid });
+      history = await MaintenanceHistory.find({ vehicleId: actualId, ownerId: authUser.uid }).sort({
         serviceDate: -1,
       });
-      readings = await OdometerReading.find({ vehicleId, ownerId: authUser.uid });
+      readings = await OdometerReading.find({ vehicleId: actualId, ownerId: authUser.uid });
     } else {
       vehicle = memDb.vehicles.get(vehicleId);
-      if (!vehicle || vehicle.ownerId !== authUser.uid) {
-        return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
+      if (!vehicle) {
+        vehicle = Array.from(memDb.vehicles.values()).find((v) => v.ownerId === authUser.uid);
       }
+      if (!vehicle || vehicle.ownerId !== authUser.uid) {
+        return NextResponse.json({ error: 'Vehicle not found', states: [], history: [] }, { status: 404 });
+      }
+      const actualId = vehicle._id;
       states = Array.from(memDb.maintenanceStates.values()).filter(
-        (s) => s.vehicleId === vehicleId && s.ownerId === authUser.uid
+        (s) => s.vehicleId === actualId && s.ownerId === authUser.uid
       );
       history = memDb.maintenanceHistory
-        .filter((h) => h.vehicleId === vehicleId && h.ownerId === authUser.uid)
+        .filter((h) => h.vehicleId === actualId && h.ownerId === authUser.uid)
         .sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime());
       readings = memDb.odometerReadings.filter(
-        (r) => r.vehicleId === vehicleId && r.ownerId === authUser.uid
+        (r) => r.vehicleId === actualId && r.ownerId === authUser.uid
       );
     }
 

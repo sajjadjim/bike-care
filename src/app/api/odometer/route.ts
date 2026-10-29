@@ -25,13 +25,32 @@ export async function GET(req: NextRequest) {
 
     if (isConnected) {
       await connectToDatabase();
+      const mongoose = (await import('mongoose')).default;
+      let actualVehicleId = vehicleId;
+      let vehicle: any = null;
+      if (mongoose.Types.ObjectId.isValid(vehicleId)) {
+        vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
+      }
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ ownerId: authUser.uid });
+      }
+      if (vehicle) {
+        actualVehicleId = vehicle._id.toString();
+      }
+
       readings = await OdometerReading.find({
-        vehicleId,
+        vehicleId: actualVehicleId,
         ownerId: authUser.uid,
       }).sort({ recordedAt: -1 });
     } else {
+      let actualId = vehicleId;
+      let vehicle = memDb.vehicles.get(vehicleId);
+      if (!vehicle) {
+        vehicle = Array.from(memDb.vehicles.values()).find((v) => v.ownerId === authUser.uid);
+        if (vehicle) actualId = vehicle._id;
+      }
       readings = memDb.odometerReadings
-        .filter((r) => r.vehicleId === vehicleId && r.ownerId === authUser.uid)
+        .filter((r) => (r.vehicleId === actualId || r.vehicleId === vehicleId) && r.ownerId === authUser.uid)
         .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
     }
 
@@ -66,7 +85,14 @@ export async function POST(req: NextRequest) {
 
     if (isConnected) {
       await connectToDatabase();
-      const vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
+      const mongoose = (await import('mongoose')).default;
+      let vehicle: any = null;
+      if (mongoose.Types.ObjectId.isValid(vehicleId)) {
+        vehicle = await Vehicle.findOne({ _id: vehicleId, ownerId: authUser.uid });
+      }
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ ownerId: authUser.uid });
+      }
       if (!vehicle) {
         return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
       }
@@ -93,7 +119,7 @@ export async function POST(req: NextRequest) {
 
       const readingDoc = await OdometerReading.create({
         ownerId: authUser.uid,
-        vehicleId,
+        vehicleId: vehicle._id.toString(),
         reading: validated.reading,
         recordedAt: new Date(validated.recordedAt),
         notes: validated.notes,
@@ -107,7 +133,10 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ success: true, reading: readingDoc, currentOdometer: vehicle.currentOdometer });
     } else {
-      const vehicle = memDb.vehicles.get(vehicleId);
+      let vehicle = memDb.vehicles.get(vehicleId);
+      if (!vehicle) {
+        vehicle = Array.from(memDb.vehicles.values()).find((v) => v.ownerId === authUser.uid);
+      }
       if (!vehicle || vehicle.ownerId !== authUser.uid) {
         return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
       }
